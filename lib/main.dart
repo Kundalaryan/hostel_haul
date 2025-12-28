@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'splash_screen.dart'; // <--- 1. Add this import
+import 'package:hostel_haul/presentation/screens/login_screen.dart';
+import 'presentation/screens/signup_screen.dart';
+import 'presentation/screens/home_screen.dart';
 
 void main() {
   runApp(const GroceryApp());
@@ -11,17 +13,28 @@ class GroceryApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Grocery App',
+      title: 'Grocery Delivery',
+      debugShowCheckedModeBanner: false, // Removes the 'DEBUG' banner
+
+      // 1. Theme Configuration (Matches your Green Design)
       theme: ThemeData(
-        fontFamily: 'Roboto',
-        brightness: Brightness.light, // Changed to Light for Splash Screen context
-        // Note: The Login screen overrides background color individually,
-        // so changing this to light won't break the dark mode login.
-        scaffoldBackgroundColor: Colors.white,
+        primaryColor: const Color(0xFF34D186),
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF34D186),
+          primary: const Color(0xFF34D186),
+        ),
       ),
-      home: const SplashScreen(), // <--- 2. Change this from LoginScreen to SplashScreen
+
+      // 2. Route Configuration
+      // This maps the string '/login' to the actual LoginScreen widget
+      initialRoute: '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignUpScreen(),
+        '/home': (context) => const HomeScreen(),
+      },
     );
   }
 }

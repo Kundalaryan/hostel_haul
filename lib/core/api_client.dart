@@ -1,10 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../main.dart'; // Import main to access navigatorKey
 
 class ApiClient {
-  // Replace with your actual Spring Boot URL
-  // If using Android Emulator, use 10.0.2.2 instead of localhost
-  static const String baseUrl = 'http://10.0.2.2:8080/api/';
+  static const String baseUrl = 'http://20.197.4.13/api/';
 
   final Dio _dio;
   final FlutterSecureStorage _storage;
@@ -18,26 +17,28 @@ class ApiClient {
   )),
         _storage = const FlutterSecureStorage() {
 
-    // Add Interceptor for JWT
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        // 1. Get token from secure storage
         final token = await _storage.read(key: 'jwt_token');
-
-        // 2. If token exists, attach it to Header
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
-
-        return handler.next(options); // Continue the request
+        return handler.next(options);
       },
       onError: (DioException e, handler) async {
-        // Handle 401 Unauthorized (Token expired) here in the future
+        // --- CATCH 401 (UNAUTHORIZED) ---
+        if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+
+          // 1. Delete the bad token
+          await _storage.delete(key: 'jwt_token');
+
+          // 2. Use the Global Key to navigate safely without 'context'
+          navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+        }
         return handler.next(e);
       },
     ));
   }
 
-  // Expose the Dio instance to be used by Repositories
   Dio get client => _dio;
 }

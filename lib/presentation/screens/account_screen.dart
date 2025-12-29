@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // <--- 1. NEW IMPORT
 import '../../data/models/order_model.dart';
 import '../../data/repositories/order_repository.dart';
 import '../../data/repositories/cart_repository.dart';
-import 'home_screen.dart'; // To navigate back to Shop
-import 'cart_screen.dart'; // To navigate to Cart
-import 'order_details_screen.dart'; // <--- IMPORT THE NEW SCREEN
+import 'home_screen.dart';
+import 'cart_screen.dart';
+import 'order_details_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -15,11 +16,10 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   final OrderRepository _orderRepository = OrderRepository();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(); // <--- 2. NEW INSTANCE
 
   List<OrderModel> _orders = [];
   bool _isLoading = true;
-
-  // State for the Active Order (Top Card)
   OrderModel? _activeOrder;
 
   @override
@@ -30,14 +30,10 @@ class _AccountScreenState extends State<AccountScreen> {
 
   void _fetchData() async {
     setState(() => _isLoading = true);
-
-    // 1. Get All Orders
     final orders = await _orderRepository.getOrders();
 
-    // 2. Find the most recent active order to show in the Timeline Card
     OrderModel? topOrder;
     if (orders.isNotEmpty) {
-      // Logic: Pick first order that is NOT Delivered or Cancelled
       topOrder = orders.firstWhere(
             (o) => o.status != 'DELIVERED' && o.status != 'CANCELLED',
         orElse: () => orders.first,
@@ -55,13 +51,41 @@ class _AccountScreenState extends State<AccountScreen> {
 
   void _handleCancelOrder() async {
     if (_activeOrder == null) return;
-
     final success = await _orderRepository.cancelOrder(_activeOrder!.id);
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Order Cancelled Successfully")));
-      _fetchData(); // Refresh list to show updated status
+      _fetchData();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to Cancel Order")));
+    }
+  }
+
+  // --- 3. NEW LOGOUT FUNCTION ---
+  void _handleLogout() async {
+    // Show confirmation dialog (Optional but good UX)
+    bool confirm = await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Log Out"),
+          content: const Text("Are you sure you want to log out?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Log Out", style: TextStyle(color: Colors.red))),
+          ],
+        )
+    ) ?? false;
+
+    if (confirm) {
+      // 1. Delete Token
+      await _storage.delete(key: 'jwt_token');
+
+      // 2. Clear Cart (Optional, but clean)
+      CartRepository().clearCart();
+
+      if (!mounted) return;
+
+      // 3. Navigate to Login and destroy history
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 
@@ -77,6 +101,13 @@ class _AccountScreenState extends State<AccountScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        actions: [
+          // Option A: Logout Icon in Top Right
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red),
+            onPressed: _handleLogout,
+          )
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: primaryColor))
@@ -85,7 +116,6 @@ class _AccountScreenState extends State<AccountScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: TIMELINE CARD ---
             if (_activeOrder != null) ...[
               const Text("Timeline of Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 16),
@@ -93,7 +123,6 @@ class _AccountScreenState extends State<AccountScreen> {
               const SizedBox(height: 32),
             ],
 
-            // --- SECTION 2: MY ORDERS LIST ---
             const Text("My Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 16),
 
@@ -101,7 +130,7 @@ class _AccountScreenState extends State<AccountScreen> {
               const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No orders yet.")))
             else
               ListView.separated(
-                shrinkWrap: true, // Important inside SingleChildScrollView
+                shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _orders.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 16),
@@ -109,19 +138,35 @@ class _AccountScreenState extends State<AccountScreen> {
                   return _buildOrderRow(_orders[index]);
                 },
               ),
+
+            const SizedBox(height: 40),
+
+            // Option B: Big Logout Button at Bottom
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: TextButton.icon(
+                onPressed: _handleLogout,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  backgroundColor: Colors.red.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                icon: const Icon(Icons.logout),
+                label: const Text("Log Out", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 20), // Bottom padding
           ],
         ),
       ),
 
-      // Bottom Navigation
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 2, // ACCOUNT IS SELECTED (Index 2)
+        currentIndex: 2,
         onTap: (index) {
           if (index == 0) {
-            // Go to Shop (Home)
             Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
           } else if (index == 1) {
-            // Go to Cart
             Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen()));
           }
         },
@@ -141,10 +186,10 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // --- WIDGET: Top Timeline Card ---
+  // ... (Keep _buildTimelineCard, _buildTimelineVisuals, _buildDot, _buildLine, _buildOrderRow exactly the same as before) ...
+
   Widget _buildTimelineCard(Color primaryColor) {
     bool isCancelled = _activeOrder?.status == 'CANCELLED';
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -154,7 +199,6 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       child: Column(
         children: [
-          // Header
           Row(
             children: [
               Container(
@@ -189,19 +233,13 @@ class _AccountScreenState extends State<AccountScreen> {
             ],
           ),
           const SizedBox(height: 24),
-
-          // Timeline Visuals (The Green Lines)
           if (!isCancelled) _buildTimelineVisuals(primaryColor),
-
           if (isCancelled)
             const Padding(
               padding: EdgeInsets.all(20.0),
               child: Text("This order was cancelled.", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
             ),
-
           const SizedBox(height: 24),
-
-          // Cancel Button
           if (!isCancelled && _activeOrder?.status != 'DELIVERED')
             SizedBox(
               width: double.infinity,
@@ -221,11 +259,9 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // Visual logic for drawing the line based on Status
   Widget _buildTimelineVisuals(Color color) {
     String status = _activeOrder?.status ?? "";
     int step = 0;
-    // Map your backend status strings to steps
     if (status == "ORDER_PLACED") step = 1;
     if (status == "PACKED") step = 2;
     if (status == "ON_WAY" || status == "IN_TRANSIT") step = 3;
@@ -273,14 +309,10 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // --- UPDATED WIDGET: Simple Order Row ---
   Widget _buildOrderRow(OrderModel order) {
     bool isCancelled = order.status == 'CANCELLED';
-
-    // 1. Wrap the entire Container with GestureDetector to handle clicks
     return GestureDetector(
       onTap: () {
-        // 2. Navigate to OrderDetailsScreen with the orderId
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => OrderDetailsScreen(orderId: order.id)),

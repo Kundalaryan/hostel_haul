@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success && mounted) {
         // Navigate to Home on success
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login Failed. Please check your credentials.')),

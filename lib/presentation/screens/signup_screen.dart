@@ -60,7 +60,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
 
         // FIX: Use pushReplacementNamed to go to Login cleanly
-        Navigator.pushReplacementNamed(context, '/login');
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
 
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

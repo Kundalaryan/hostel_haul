@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hostel_haul/presentation/screens/login_screen.dart';
+import 'package:hostel_haul/presentation/screens/splash_screen.dart';
 import 'presentation/screens/signup_screen.dart';
 import 'presentation/screens/home_screen.dart';
 
@@ -29,8 +30,9 @@ class GroceryApp extends StatelessWidget {
 
       // 2. Route Configuration
       // This maps the string '/login' to the actual LoginScreen widget
-      initialRoute: '/login',
+      initialRoute: '/',
       routes: {
+        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
         '/home': (context) => const HomeScreen(),

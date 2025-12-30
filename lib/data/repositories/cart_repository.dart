@@ -1,3 +1,4 @@
+import 'dart:math'; // Import for Random
 import 'package:dio/dio.dart';
 import '../../core/api_client.dart';
 import '../../core/api_response.dart';
@@ -5,19 +6,21 @@ import '../models/cart_model.dart';
 import '../models/product_model.dart';
 
 class CartRepository {
-  // --- 1. Singleton Setup (Makes this accessible everywhere) ---
+  // --- 1. Singleton Setup ---
   static final CartRepository _instance = CartRepository._internal();
   factory CartRepository() => _instance;
   CartRepository._internal();
 
-  // --- 2. Local State (The Cart) ---
+  // --- 2. Local State ---
   final List<CartItem> _cartItems = [];
   final ApiClient _apiClient = ApiClient();
 
-  // Getters
   List<CartItem> get items => _cartItems;
 
-  int get itemCount => _cartItems.length;
+  int get itemCount {
+    // Sum of all quantities (e.g., 2 Apples + 1 Bread = 3 items)
+    return _cartItems.fold(0, (sum, item) => sum + item.quantity);
+  }
 
   double get totalAmount {
     double total = 0;
@@ -27,10 +30,9 @@ class CartRepository {
     return total;
   }
 
-  // --- 3. Local Logic (Add/Remove) ---
+  // --- 3. Local Logic ---
 
   void addToCart(ProductModel product) {
-    // Check if already exists
     final index = _cartItems.indexWhere((item) => item.product.id == product.id);
 
     if (index >= 0) {
@@ -58,10 +60,16 @@ class CartRepository {
     _cartItems.clear();
   }
 
-  // --- 4. API Logic (Checkout) ---
+  // --- 4. API Logic (Checkout with Idempotency) ---
   Future<bool> checkout() async {
     try {
-      // Convert Local Cart to API Request
+      if (_cartItems.isEmpty) return false;
+
+      // A. Generate Unique Idempotency Key
+      // Format: "ORDER-timestamp-random"
+      String idempotencyKey = "ORDER-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(9999)}";
+
+      // B. Prepare Request Body
       final orderItems = _cartItems.map((item) => OrderItem(
         productId: item.product.id,
         quantity: item.quantity,
@@ -69,9 +77,15 @@ class CartRepository {
 
       final request = OrderRequest(items: orderItems);
 
+      // C. Send Request with Header
       Response response = await _apiClient.client.post(
-        '/orders', // Change to your actual endpoint
+        '/orders',
         data: request.toJson(),
+        options: Options(
+          headers: {
+            'Idempotency-Key': idempotencyKey, // <--- THE NEW HEADER
+          },
+        ),
       );
 
       final apiResponse = ApiResponse<dynamic>.fromJson(
@@ -80,7 +94,7 @@ class CartRepository {
       );
 
       if (apiResponse.success) {
-        clearCart(); // Clear local cart on success
+        clearCart();
         return true;
       }
       return false;
